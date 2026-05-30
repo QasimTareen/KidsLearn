@@ -1,0 +1,197 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Default Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Functions Zone ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Role Lookup Helpers: auth tokens never contain custom claims in this architecture,
+    // so we explicitly perform a DB lookup on /users or /teachers documents.
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        getRole() == 'Admin'
+      );
+    }
+
+    function isTeacher() {
+      return isSignedIn() && exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
+    }
+
+    function isApprovedTeacher() {
+      return isTeacher() && get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.isApproved == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Checks structure of incoming user document
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role', 'provider', 'createdAt']) &&
+             data.keys().size() == 6 &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 128 &&
+             data.role in ['Student', 'Parent', 'Admin'] &&
+             data.provider is string &&
+             data.createdAt == request.time;
+    }
+
+    // Checks structure of incoming teacher request document
+    function isValidTeacher(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'specialty', 'isApproved', 'provider', 'createdAt']) &&
+             data.keys().size() == 7 &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 128 &&
+             data.specialty is string && data.specialty.size() <= 200 &&
+             // Prevent self-assigned approved privilege unless Admin overrides
+             data.isApproved == false &&
+             data.provider is string &&
+             data.createdAt == request.time;
+    }
+
+    // Checks structure of incoming Course changes
+    function isValidCourse(data) {
+      return data.keys().hasAll(['title', 'instructorName', 'ageGroup', 'description']) &&
+             data.title is string && data.title.size() <= 128 &&
+             data.instructorName is string && data.instructorName.size() <= 100 &&
+             data.ageGroup is string && data.ageGroup.size() <= 20 &&
+             data.description is string && data.description.size() <= 500;
+    }
+
+    // Checks structure of incoming Assessment
+    function isValidAssessment(data) {
+      return data.keys().hasAll(['courseId', 'lessonId', 'question', 'grade']) &&
+             data.courseId is string && data.courseId.size() <= 128 &&
+             data.lessonId is string && data.lessonId.size() <= 128 &&
+             data.question is string && data.question.size() <= 500 &&
+             data.grade is string && data.grade.size() <= 20;
+    }
+
+    // Checks structure of incoming Student Quiz/Assessment submissions
+    function isValidSubmission(data) {
+      return data.keys().hasAll(['studentId', 'courseId', 'lessonId', 'status', 'submittedAt']) &&
+             data.studentId == request.auth.uid &&
+             data.courseId is string && data.courseId.size() <= 128 &&
+             data.lessonId is string && data.lessonId.size() <= 128 &&
+             data.status in ['Submitted', 'Graded'] &&
+             data.submittedAt == request.time;
+    }
+
+    // --- Collection Custom Matches ---
+
+    // 1. Users collection rules
+    match /users/{userId} {
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin() || isApprovedTeacher());
+      allow list: if isAdmin();
+      
+      // Self registration without privilege escalation
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      
+      // Updates allowed on name, grade, stars, streak. Must not touch immutable roles or provider
+      allow update: if isOwner(userId) &&
+                    request.resource.data.role == resource.data.role &&
+                    request.resource.data.provider == resource.data.provider &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+                    
+      allow delete: if isAdmin();
+    }
+
+    // 2. Teachers collection rules
+    match /teachers/{teacherId} {
+      allow read: if isSignedIn() && (isOwner(teacherId) || isAdmin());
+      allow list: if isAdmin();
+      
+      // Creation sets isApproved of course to false
+      allow create: if isOwner(teacherId) && isValidTeacher(request.resource.data);
+      
+      // Only Admin can toggle isApproved
+      allow update: if isAdmin() || (
+        isOwner(teacherId) &&
+        request.resource.data.isApproved == resource.data.isApproved &&
+        request.resource.data.provider == resource.data.provider &&
+        request.resource.data.createdAt == resource.data.createdAt
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // 3. Courses collection rules
+    match /courses/{courseId} {
+      allow read: if isSignedIn(); // All signed in stakeholders can lookup courses
+      
+      // Only approved instructors or admins can write classes
+      allow create: if isAdmin() || (isApprovedTeacher() && isValidCourse(request.resource.data));
+      allow update: if isAdmin() || (isApprovedTeacher() && isValidCourse(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    // 4. Assessments questions collection
+    match /assessments/{assessmentId} {
+      allow read: if isSignedIn(); // Students load questions in playrooms
+      allow create, update: if isAdmin() || (isApprovedTeacher() && isValidAssessment(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    // 5. Quiz assessment submissions
+    match /submissions/{submissionId} {
+      // Students see their own. Approved teachers and Admins see submissions for grading.
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid || 
+        isApprovedTeacher() || 
+        isAdmin()
+      );
+      
+      // Secure creation for students
+      allow create: if isSignedIn() && isValidSubmission(request.resource.data);
+      
+      // Updates: Studetns only edit if status is Submitted. Teachers grade and add score/feedback
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        // Action: Kids updates submission draft
+        (resource.data.studentId == request.auth.uid && 
+         resource.data.status == 'Submitted' && 
+         request.resource.data.status == 'Submitted') ||
+        // Action: Approved teacher submits grade
+        (isApprovedTeacher() && 
+         request.resource.data.studentId == resource.data.studentId &&
+         request.resource.data.courseId == resource.data.courseId &&
+         request.resource.data.lessonId == resource.data.lessonId &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'score', 'teacherFeedback']))
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // 6. Performance Analytics collection
+    match /analytics/{analyticsId} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid || 
+        getRole() == 'Parent' || // parent reads linked student progress
+        isAdmin()
+      );
+      
+      allow create, update: if isAdmin() || isOwner(resource.data.studentId) || isApprovedTeacher();
+      allow delete: if isAdmin();
+    }
+  }
+}

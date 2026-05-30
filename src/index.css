@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=Nunito:wght@300..1000&family=JetBrains+Mono:wght@400;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", "Inter", sans-serif;
+  --font-display: "Fredoka", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-brand-blue-light: #eff6ff;
+  --color-brand-blue: #2563eb;
+  --color-brand-blue-dark: #1e40af;
+  --color-brand-yellow: #facc15;
+  --color-brand-yellow-dark: #eab308;
+}
+
+/* Float cartoon animations */
+@keyframes float {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(3deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+@keyframes float-reverse {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(8px) rotate(-3deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float-reverse 8s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #fcfdfd; /* extremely soft blueish/white clean tint */
+}
+
+.font-fun {
+  font-family: var(--font-display);
+}
+
+.font-urdu {
+  font-family: 'Noto Nastaliq Urdu', 'Nunito', sans-serif;
+  line-height: 2 !important;
+}

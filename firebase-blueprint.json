@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Student or Parent dashboard credentials and gamification tracking.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Authenticating Firebase Auth user identifier" },
+        "name": { "type": "string", "description": "Display name of the user or kid profile" },
+        "email": { "type": "string", "description": "E-mail credential" },
+        "role": { "type": "string", "enum": ["Student", "Parent", "Admin"], "description": "User's ecosystem access role" },
+        "grade": { "type": "string", "description": "Active learning class grade (e.g., Grade 8)" },
+        "stars": { "type": "integer", "description": "Collected gamified gold rewards" },
+        "streak": { "type": "integer", "description": "Daily active continuous loop state" },
+        "provider": { "type": "string", "description": "Initial bound provider (Google or Email/Password)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Profile generation epoch" }
+      },
+      "required": ["uid", "name", "email", "role", "provider", "createdAt"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Educator profile details and credentials under admin verify lifecycle.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Authenticating Firebase Auth educator identifier" },
+        "name": { "type": "string", "description": "Full name of the instructor" },
+        "email": { "type": "string", "description": "Contact e-mail address" },
+        "specialty": { "type": "string", "description": "Target subject line expertise (e.g., Mathematics, Science)" },
+        "isApproved": { "type": "boolean", "description": "Approved validation toggle from FounderHQ" },
+        "provider": { "type": "string", "description": "Created authorization channel" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Instructor registry date" }
+      },
+      "required": ["uid", "name", "email", "specialty", "isApproved", "provider", "createdAt"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Educational course metadata and associated lessons list.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Syllabus main title" },
+        "instructorName": { "type": "string", "description": "Full name of teaching author" },
+        "ageGroup": { "type": "string", "description": "Target target learning span" },
+        "description": { "type": "string", "description": "Summary explaining study goals" }
+      },
+      "required": ["title", "instructorName", "ageGroup", "description"]
+    },
+    "Assessment": {
+      "title": "Assessment",
+      "description": "Lesson-appropriate questions or tests injected into videos.",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string", "description": "Parent course element identifier" },
+        "lessonId": { "type": "string", "description": "Target zone lesson identifier" },
+        "question": { "type": "string", "description": "The specific task to solve" },
+        "grade": { "type": "string", "description": "Active class target level" }
+      },
+      "required": ["courseId", "lessonId", "question", "grade"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "Subjective answers or solved test records submitted by students.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "description": "Authenticating student author ID" },
+        "courseId": { "type": "string", "description": "Associated course reference ID" },
+        "lessonId": { "type": "string", "description": "Associated lesson reference ID" },
+        "status": { "type": "string", "enum": ["Submitted", "Graded"], "description": "Validation cycle tag" },
+        "submittedAt": { "type": "string", "format": "date-time", "description": "Temporal timestamp" }
+      },
+      "required": ["studentId", "courseId", "lessonId", "status", "submittedAt"]
+    },
+    "Analytics": {
+      "title": "Analytics",
+      "description": "Overall progress analytics for student performance metrics.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "description": "The target tracked student ID" },
+        "lessonsCompleted": { "type": "integer" },
+        "avgQuizScore": { "type": "number" },
+        "completedHours": { "type": "number" }
+      },
+      "required": ["studentId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "Student or parent profiles"
+    },
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "Teacher" },
+      "description": "Instructors details under Founder HQ approval pipeline"
+    },
+    "/courses/{courseId}": {
+      "schema": { "$ref": "Course" },
+      "description": "Full syllabus list readable by stakeholders"
+    },
+    "/assessments/{assessmentId}": {
+      "schema": { "$ref": "Assessment" },
+      "description": "Preloaded tests associated with grade and lesson"
+    },
+    "/submissions/{submissionId}": {
+      "schema": { "$ref": "Submission" },
+      "description": "Quiz results and grading cards for subjective evaluation"
+    },
+    "/analytics/{analyticsId}": {
+      "schema": { "$ref": "Analytics" },
+      "description": "Performance tracking metrics visible to parents, student, and admin"
+    }
+  }
+}
