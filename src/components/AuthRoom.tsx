@@ -201,7 +201,7 @@ export default function AuthRoom({ onAuthSuccess, onClose }: AuthRoomProps) {
       if (isUnauthorized) {
         console.warn("Domain authentication warning: Host needs to be whitelisted under Authorized Domains in the Firebase console.", err);
         setAuthorizedDomainHost(window.location.hostname);
-        setErrorMsg("Firebase Authorized Domain Error: This preview container domain has not been registered in your Firebase project (kidslearn-2aae7) Authorized redirect list.");
+        setErrorMsg("Firebase Authorized Domain Error: This domain has not been registered in your Firebase project's Authorized redirect list. Please add it in Firebase Console → Authentication → Settings → Authorized Domains.");
       } else if (isUserClosed) {
         console.warn("User cancelled Google popup auth or closed the tab.", err);
         setErrorMsg(isUrdu 
@@ -302,13 +302,19 @@ export default function AuthRoom({ onAuthSuccess, onClose }: AuthRoomProps) {
   // Founder HQ Bypass login
   const handleFounderAuth = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name === 'admin' && password === 'admin123') {
+    const adminUser = import.meta.env.VITE_ADMIN_USERNAME || 'admin';
+    const adminPass = import.meta.env.VITE_ADMIN_PASSWORD;
+    if (!adminPass) {
+      setErrorMsg("Admin access is not configured. Please set VITE_ADMIN_USERNAME and VITE_ADMIN_PASSWORD in your environment.");
+      return;
+    }
+    if (name === adminUser && password === adminPass) {
       setSuccessMsg(isUrdu ? "برائے بانی ہیڈ کوارٹر بائی پاس لاگ ان کامیاب۔ منتقلی جاری ہے... 🛡️" : "Founder HQ Bypass Authorized. Fetching global metrics... 🛡️");
       setTimeout(() => {
         onAuthSuccess({ uid: 'founder-admin', email: 'founder@kidslearn.org', displayName: 'Founder Admin' }, 'Admin');
       }, 1000);
     } else {
-      setErrorMsg(isUrdu ? "غیر مجاز پاس ورڈ یا صارف کا نام۔ 'admin' اور 'admin123' استعمال کریں۔" : "Unauthorized credentials. Correct credits for Admin portal is name: admin / password: admin123.");
+      setErrorMsg(isUrdu ? "غیر مجاز پاس ورڈ یا صارف کا نام۔" : "Unauthorized credentials. Please check your admin username and password.");
     }
   };
 
@@ -464,12 +470,12 @@ export default function AuthRoom({ onAuthSuccess, onClose }: AuthRoomProps) {
                 <div>
                   <p className="text-[9px] text-amber-800 font-extrabold uppercase tracking-wide">1. Visit link</p>
                   <a 
-                    href="https://console.firebase.google.com/project/kidslearn-2aae7/authentication/providers" 
+                    href={`https://console.firebase.google.com/project/${import.meta.env.VITE_FIREBASE_PROJECT_ID}/authentication/providers`}
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="inline-flex items-center gap-1 text-indigo-700 hover:underline font-bold text-[11px] mt-0.5"
                   >
-                    🔗 Open Firebase Auth settings (kidslearn-2aae7)
+                    🔗 Open Firebase Auth settings ({import.meta.env.VITE_FIREBASE_PROJECT_ID})
                   </a>
                 </div>
                 
@@ -860,13 +866,13 @@ export default function AuthRoom({ onAuthSuccess, onClose }: AuthRoomProps) {
                     </div>
 
                     <div className="space-y-1.5 text-left">
-                      <label className="text-xs font-bold text-slate-600">{isUrdu ? 'انتظامی پاس ورڈ (admin123)' : 'Access Password (admin123)'}</label>
+                      <label className="text-xs font-bold text-slate-600">{isUrdu ? 'انتظامی پاس ورڈ' : 'Access Password'}</label>
                       <div className="relative">
                         <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
                         <input 
                           type="password" 
                           required 
-                          placeholder="e.g. admin123"
+                          placeholder="Enter admin password"
                           value={password}
                           onChange={e => setPassword(e.target.value)}
                           className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-red-500 rounded-xl text-xs font-bold outline-none"
